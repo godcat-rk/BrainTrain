@@ -1,0 +1,57 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand-primary: #6c63ff;
+  --color-brand-secondary: #ff6584;
+  --color-brand-accent: #43e97b;
+  --color-brand-yellow: #f7c948;
+  --color-brand-orange: #ff9a3c;
+
+  --font-display: 'Nunito', system-ui, sans-serif;
+  --font-body: system-ui, 'Segoe UI', Roboto, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Memory card flip animation */
+.memory-card-container {
+  perspective: 600px;
+  cursor: pointer;
+}
+
+.memory-card-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 0.35s ease;
+}
+
+.memory-card-inner.flipped {
+  transform: rotateY(180deg);
+}
+
+.memory-card-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.memory-card-back {
+  transform: rotateY(180deg);
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: #f8f7ff;
+  color: #2d2d2d;
+  -webkit-font-smoothing: antialiased;
+}
