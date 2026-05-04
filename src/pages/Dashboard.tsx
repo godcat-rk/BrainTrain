@@ -14,6 +14,12 @@ const GAME_COLORS: Record<string, string> = {
   memory: '#6c63ff',
 }
 
+const DIFFICULTY_LABELS: Record<string, string> = {
+  '4x4': 'かんたん',
+  '4x6': 'ふつう',
+  '6x6': 'むずかしい',
+}
+
 function toLocalDateStr(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
@@ -255,7 +261,7 @@ export default function Dashboard() {
         {hasMemory && (
           <div className="bg-white rounded-2xl p-5 shadow-sm">
             <h2 className="font-bold text-gray-700 mb-1">手数の推移（週平均）</h2>
-            <p className="text-xs text-gray-400 mb-4">少ないほど効率よくクリアできているにゃ</p>
+            <p className="text-xs text-gray-400 mb-4">少ないほど効率よくクリアできている</p>
             <ResponsiveContainer width="100%" height={200}>
               <LineChart data={weeklyMovesData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
@@ -289,7 +295,7 @@ export default function Dashboard() {
         {hasMemory && (
           <div className="bg-white rounded-2xl p-5 shadow-sm">
             <h2 className="font-bold text-gray-700 mb-1">見落としの推移（週平均）</h2>
-            <p className="text-xs text-gray-400 mb-4">少ないほど記憶が正確に活かせているにゃ</p>
+            <p className="text-xs text-gray-400 mb-4">少ないほど記憶が正確に活かせている</p>
             <ResponsiveContainer width="100%" height={200}>
               <LineChart data={weeklyOversightsData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
@@ -376,7 +382,9 @@ export default function Dashboard() {
                       {GAME_NAMES[record.gameId] ?? record.gameId}
                     </span>
                     {meta.difficulty && (
-                      <span className="text-xs text-gray-400 ml-2">{meta.difficulty}</span>
+                      <span className="text-xs text-gray-400 ml-2">
+                        {DIFFICULTY_LABELS[meta.difficulty] ?? meta.difficulty}
+                      </span>
                     )}
                     <div className="text-xs text-gray-400 mt-0.5">{dateStr}</div>
                   </div>
