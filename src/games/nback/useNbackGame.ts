@@ -23,9 +23,16 @@ export interface NbackResult {
   n: NbackLevel
 }
 
+export interface TrialFeedback {
+  posMatch: boolean
+  numMatch: boolean
+  posPressed: boolean
+  numPressed: boolean
+}
+
 export const JUDGEABLE = 10
 const STIMULUS_MS = 2600
-const BLANK_MS = 500
+const BLANK_MS = 1200
 
 const POSITIONS = [0, 1, 2, 3, 4, 5, 6, 7, 8]
 const NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9]
@@ -91,6 +98,7 @@ export function useNbackGame() {
     numberPressed: false,
   })
   const [result, setResult] = useState<NbackResult | null>(null)
+  const [lastFeedback, setLastFeedback] = useState<TrialFeedback | null>(null)
 
   const seqRef = useRef<Stimulus[]>([])
   const respRef = useRef<TrialResponse[]>([])
@@ -134,11 +142,20 @@ export function useNbackGame() {
       setTrialIndex(idx)
       setCurrentResponse({ positionPressed: false, numberPressed: false })
       setCurrentStimulus(seqRef.current[idx])
+      setLastFeedback(null)
       setTrialPhase('showing')
 
       timerRef.current = setTimeout(() => {
         if (!isPlayingRef.current) return
         if (idx >= nVal) {
+          const curr = seqRef.current[idx]
+          const nback = seqRef.current[idx - nVal]
+          setLastFeedback({
+            posMatch: curr.position === nback.position,
+            numMatch: curr.number === nback.number,
+            posPressed: curRespRef.current.positionPressed,
+            numPressed: curRespRef.current.numberPressed,
+          })
           respRef.current[idx - nVal] = { ...curRespRef.current }
         }
         setCurrentStimulus(null)
@@ -204,6 +221,7 @@ export function useNbackGame() {
     setCurrentStimulus(null)
     setCurrentResponse({ positionPressed: false, numberPressed: false })
     setResult(null)
+    setLastFeedback(null)
   }, [])
 
   useEffect(() => () => clearTimer(), [])
@@ -218,6 +236,7 @@ export function useNbackGame() {
     isJudgeable: n !== null && trialIndex >= n,
     currentStimulus,
     currentResponse,
+    lastFeedback,
     result,
     startGame,
     pressPosition,

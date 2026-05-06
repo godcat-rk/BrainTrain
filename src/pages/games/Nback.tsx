@@ -1,11 +1,34 @@
 import { useNbackGame, JUDGEABLE } from '../../games/nback/useNbackGame'
-import type { NbackLevel, NbackResult, Stimulus, TrialPhase, TrialResponse } from '../../games/nback/useNbackGame'
+import type {
+  NbackLevel,
+  NbackResult,
+  Stimulus,
+  TrialFeedback,
+  TrialPhase,
+  TrialResponse,
+} from '../../games/nback/useNbackGame'
 
 const LEVEL_CONFIG: Record<NbackLevel, { label: string; difficulty: string; color: string }> = {
   1: { label: '1-back', difficulty: 'かんたん', color: 'text-green-600' },
   2: { label: '2-back', difficulty: 'ふつう', color: 'text-yellow-600' },
   3: { label: '3-back', difficulty: 'むずかしい', color: 'text-orange-600' },
   4: { label: '4-back', difficulty: '超むずかしい', color: 'text-red-600' },
+}
+
+type FeedbackResult = 'hit' | 'miss' | 'false_alarm' | 'correct_rejection'
+
+function getFeedbackResult(match: boolean, pressed: boolean): FeedbackResult {
+  if (match && pressed) return 'hit'
+  if (match && !pressed) return 'miss'
+  if (!match && pressed) return 'false_alarm'
+  return 'correct_rejection'
+}
+
+const FEEDBACK_STYLE: Record<FeedbackResult, { bg: string; label: string }> = {
+  hit:               { bg: 'bg-green-500 text-white',              label: '✓ 正解！' },
+  miss:              { bg: 'bg-red-400 text-white',                label: '✗ 見逃し' },
+  false_alarm:       { bg: 'bg-orange-400 text-white',             label: '! 誤検出' },
+  correct_rejection: { bg: 'bg-gray-100 text-gray-400 border-2 border-gray-100', label: '— 一致なし' },
 }
 
 function SelectScreen({ onSelect }: { onSelect: (n: NbackLevel) => void }) {
@@ -17,7 +40,7 @@ function SelectScreen({ onSelect }: { onSelect: (n: NbackLevel) => void }) {
         N個前と同じ<span className="font-bold text-[#6c63ff]">位置</span>・
         <span className="font-bold text-[#ff6584]">数字</span>かを判定しよう
       </p>
-      <p className="text-gray-400 mb-8 text-xs text-center">各20回判定 · 約1分</p>
+      <p className="text-gray-400 mb-8 text-xs text-center">各10回判定 · 約35秒</p>
       <div className="flex flex-col gap-3 w-full max-w-xs">
         {([1, 2, 3, 4] as NbackLevel[]).map((level) => {
           const cfg = LEVEL_CONFIG[level]
@@ -33,6 +56,37 @@ function SelectScreen({ onSelect }: { onSelect: (n: NbackLevel) => void }) {
           )
         })}
       </div>
+    </div>
+  )
+}
+
+function ProgressDots({
+  completedCount,
+  currentIdx,
+}: {
+  completedCount: number
+  currentIdx: number
+}) {
+  return (
+    <div className="flex gap-1.5">
+      {Array.from({ length: JUDGEABLE }, (_, i) => {
+        const done = i < completedCount
+        const current = i === currentIdx
+        return (
+          <div
+            key={i}
+            className={`
+              w-3 h-3 rounded-full transition-all duration-300
+              ${done
+                ? 'bg-[#6c63ff]'
+                : current
+                  ? 'bg-[#6c63ff] opacity-40 scale-125'
+                  : 'bg-gray-200'
+              }
+            `}
+          />
+        )
+      })}
     </div>
   )
 }
@@ -72,7 +126,8 @@ function NbackGrid({
 function ResponseButton({
   label,
   pressed,
-  disabled,
+  canRespond,
+  feedbackResult,
   activeBg,
   borderColor,
   textColor,
@@ -81,22 +136,32 @@ function ResponseButton({
 }: {
   label: string
   pressed: boolean
-  disabled: boolean
+  canRespond: boolean
+  feedbackResult: FeedbackResult | null
   activeBg: string
   borderColor: string
   textColor: string
   hoverBg: string
   onClick: () => void
 }) {
+  if (feedbackResult !== null) {
+    const { bg, label: fbLabel } = FEEDBACK_STYLE[feedbackResult]
+    return (
+      <div className={`px-5 py-4 rounded-2xl font-bold text-sm text-center min-w-[120px] ${bg}`}>
+        {fbLabel}
+      </div>
+    )
+  }
+
   return (
     <button
       onClick={onClick}
-      disabled={disabled}
+      disabled={!canRespond}
       className={`
-        px-5 py-4 rounded-2xl font-bold text-sm transition-all select-none
+        px-5 py-4 rounded-2xl font-bold text-sm transition-all select-none min-w-[120px]
         ${pressed
           ? `${activeBg} text-white shadow-md scale-95`
-          : disabled
+          : !canRespond
             ? 'bg-gray-100 text-gray-300 cursor-not-allowed border-2 border-gray-100'
             : `bg-white border-2 ${borderColor} ${textColor} ${hoverBg}`
         }
@@ -128,6 +193,7 @@ function PlayScreen({
   currentStimulus,
   trialPhase,
   currentResponse,
+  lastFeedback,
   onPressPosition,
   onPressNumber,
   onQuit,
@@ -138,25 +204,40 @@ function PlayScreen({
   currentStimulus: Stimulus | null
   trialPhase: TrialPhase
   currentResponse: TrialResponse
+  lastFeedback: TrialFeedback | null
   onPressPosition: () => void
   onPressNumber: () => void
   onQuit: () => void
 }) {
   const canRespond = isJudgeable && trialPhase === 'showing'
-  const judgeableIdx = isJudgeable ? trialIndex - n + 1 : 0
+  const judgeableIdx = isJudgeable ? trialIndex - n : -1
+
+  const completedCount = isJudgeable
+    ? judgeableIdx + (trialPhase === 'blank' ? 1 : 0)
+    : 0
+  const currentDotIdx = isJudgeable && trialPhase === 'showing' ? judgeableIdx : -1
+
+  const posFeedback: FeedbackResult | null =
+    lastFeedback !== null
+      ? getFeedbackResult(lastFeedback.posMatch, lastFeedback.posPressed)
+      : null
+  const numFeedback: FeedbackResult | null =
+    lastFeedback !== null
+      ? getFeedbackResult(lastFeedback.numMatch, lastFeedback.numPressed)
+      : null
 
   return (
-    <div className="min-h-screen bg-[#f8f7ff] flex flex-col items-center justify-center px-4 py-8 gap-5">
-      <div className="flex items-center gap-3 text-sm">
-        <span className="bg-[#6c63ff] text-white px-3 py-1 rounded-full font-bold">
+    <div className="min-h-screen bg-[#f8f7ff] flex flex-col items-center justify-center px-4 py-8 gap-4">
+      <div className="flex items-center gap-3">
+        <span className="bg-[#6c63ff] text-white px-3 py-1 rounded-full font-bold text-sm">
           {n}-back
         </span>
-        <span className="text-gray-400">
-          {isJudgeable
-            ? `${judgeableIdx} / ${JUDGEABLE}`
-            : `準備中 ${trialIndex + 1} / ${n}`}
-        </span>
+        {!isJudgeable && (
+          <span className="text-gray-400 text-sm">準備中 {trialIndex + 1} / {n}</span>
+        )}
       </div>
+
+      <ProgressDots completedCount={completedCount} currentIdx={currentDotIdx} />
 
       <NbackGrid stimulus={currentStimulus} trialPhase={trialPhase} />
 
@@ -174,7 +255,8 @@ function PlayScreen({
         <ResponseButton
           label="📍 位置が同じ"
           pressed={currentResponse.positionPressed}
-          disabled={!canRespond}
+          canRespond={canRespond}
+          feedbackResult={posFeedback}
           activeBg="bg-[#6c63ff]"
           borderColor="border-[#6c63ff]"
           textColor="text-[#6c63ff]"
@@ -184,7 +266,8 @@ function PlayScreen({
         <ResponseButton
           label="🔢 数字が同じ"
           pressed={currentResponse.numberPressed}
-          disabled={!canRespond}
+          canRespond={canRespond}
+          feedbackResult={numFeedback}
           activeBg="bg-[#ff6584]"
           borderColor="border-[#ff6584]"
           textColor="text-[#ff6584]"
@@ -266,6 +349,7 @@ export default function Nback() {
     isJudgeable,
     currentStimulus,
     currentResponse,
+    lastFeedback,
     result,
     startGame,
     pressPosition,
@@ -286,6 +370,7 @@ export default function Nback() {
         currentStimulus={currentStimulus}
         trialPhase={trialPhase}
         currentResponse={currentResponse}
+        lastFeedback={lastFeedback}
         onPressPosition={pressPosition}
         onPressNumber={pressNumber}
         onQuit={restart}
