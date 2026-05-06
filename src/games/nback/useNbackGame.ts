@@ -24,7 +24,7 @@ export interface NbackResult {
 }
 
 export const JUDGEABLE = 10
-const STIMULUS_MS = 3000
+const STIMULUS_MS = 2600
 const BLANK_MS = 500
 
 const POSITIONS = [0, 1, 2, 3, 4, 5, 6, 7, 8]
@@ -46,8 +46,8 @@ function generateSequence(n: NbackLevel): Stimulus[] {
   }
   for (let i = n; i < total; i++) {
     const ref = seq[i - n]
-    const posMatch = Math.random() < 0.5
-    const numMatch = Math.random() < 0.5
+    const posMatch = Math.random() < 0.45
+    const numMatch = Math.random() < 0.45
     seq.push({
       position: posMatch ? ref.position : pickExclude(POSITIONS, ref.position),
       number: numMatch ? ref.number : pickExclude(NUMBERS, ref.number),

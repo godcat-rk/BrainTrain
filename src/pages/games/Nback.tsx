@@ -114,7 +114,7 @@ function TimerBar({ trialIndex, trialPhase }: { trialIndex: number; trialPhase: 
         <div
           key={`${trialIndex}-timer`}
           className="h-full bg-[#6c63ff] rounded-full"
-          style={{ animation: 'nback-shrink 3000ms linear forwards' }}
+          style={{ animation: 'nback-shrink 2600ms linear forwards' }}
         />
       )}
     </div>
