@@ -24,7 +24,7 @@ export interface NbackResult {
 }
 
 export const JUDGEABLE = 10
-const STIMULUS_MS = 2000
+const STIMULUS_MS = 3000
 const BLANK_MS = 500
 
 const POSITIONS = [0, 1, 2, 3, 4, 5, 6, 7, 8]
