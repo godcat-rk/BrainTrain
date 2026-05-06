@@ -86,7 +86,7 @@ function PlayScreen({
   onQuit: () => void
 }) {
   const config = DIFFICULTY_CONFIG[difficulty]
-  const colsClass = config.cols === 6 ? 'grid-cols-4 sm:grid-cols-6' : 'grid-cols-4'
+  const colsClass = config.cols === 6 ? 'grid-cols-6' : 'grid-cols-4'
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-50 px-4 py-6">
