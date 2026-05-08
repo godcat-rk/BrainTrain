@@ -12,6 +12,15 @@ const GAMES: GameConfig[] = [
     available: true,
   },
   {
+    id: 'nback',
+    name: 'N-back 課題',
+    description: 'N個前と同じ位置・数字かを判定しよう！',
+    icon: '🧠',
+    scoreLabel: 'スコア',
+    higherIsBetter: true,
+    available: true,
+  },
+  {
     id: 'reaction',
     name: '反応速度',
     description: '光ったらすぐタップ！',
