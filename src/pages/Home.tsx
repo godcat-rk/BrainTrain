@@ -21,6 +21,15 @@ const GAMES: GameConfig[] = [
     available: true,
   },
   {
+    id: 'corsi',
+    name: 'コルシブロック',
+    description: '光った順番を覚えて同じ順にタップ！視空間記憶を鍛えよう',
+    icon: '🔲',
+    scoreLabel: 'スコア',
+    higherIsBetter: true,
+    available: true,
+  },
+  {
     id: 'reaction',
     name: '反応速度',
     description: '光ったらすぐタップ！',
