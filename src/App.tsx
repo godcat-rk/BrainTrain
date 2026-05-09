@@ -3,6 +3,8 @@ import NavBar from './components/NavBar'
 import Home from './pages/Home'
 import Dashboard from './pages/Dashboard'
 import Memory from './pages/games/Memory'
+import Nback from './pages/games/Nback'
+import Corsi from './pages/games/Corsi'
 
 export default function App() {
   return (
@@ -14,6 +16,8 @@ export default function App() {
             <Route path="/" element={<Home />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/games/memory" element={<Memory />} />
+            <Route path="/games/nback" element={<Nback />} />
+            <Route path="/games/corsi" element={<Corsi />} />
           </Routes>
         </main>
       </div>
