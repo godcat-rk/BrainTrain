@@ -1,22 +1,8 @@
-import { useCorsiGame, BLOCK_COUNT } from '../../games/corsi/useCorsiGame'
-import type { GamePhase, CorsiResult } from '../../games/corsi/useCorsiGame'
-
-// 9 blocks in scattered positions on a 320×320 canvas (px)
-const BLOCK_POSITIONS = [
-  { x: 28,  y: 52  },
-  { x: 195, y: 18  },
-  { x: 112, y: 128 },
-  { x: 268, y: 88  },
-  { x: 14,  y: 198 },
-  { x: 168, y: 192 },
-  { x: 284, y: 228 },
-  { x: 72,  y: 272 },
-  { x: 218, y: 272 },
-]
-const BLOCK_SIZE = 52
-const CANVAS = 340
+import { useCorsiGame, BLOCK_COUNT, BLOCK_SIZE, CANVAS_SIZE, TOTAL_ROUNDS } from '../../games/corsi/useCorsiGame'
+import type { GamePhase, CorsiResult, BlockPosition } from '../../games/corsi/useCorsiGame'
 
 interface BlockProps {
+  pos: BlockPosition
   idx: number
   phase: GamePhase
   isLit: boolean
@@ -25,8 +11,7 @@ interface BlockProps {
   onClick: () => void
 }
 
-function Block({ idx, phase, isLit, tapOrder, feedbackCorrect, onClick }: BlockProps) {
-  const pos = BLOCK_POSITIONS[idx]
+function Block({ pos, idx, phase, isLit, tapOrder, feedbackCorrect, onClick }: BlockProps) {
   const canClick = phase === 'input'
 
   let bg = 'bg-white border-2 border-gray-200'
@@ -67,12 +52,32 @@ function Block({ idx, phase, isLit, tapOrder, feedbackCorrect, onClick }: BlockP
   )
 }
 
+function ProgressDots({ current, total }: { current: number; total: number }) {
+  return (
+    <div className="flex gap-2 items-center">
+      {Array.from({ length: total }, (_, i) => (
+        <div
+          key={i}
+          className={`rounded-full transition-all duration-300 ${
+            i === current
+              ? 'w-3 h-3 bg-[#6c63ff]'
+              : i < current
+                ? 'w-2 h-2 bg-gray-300'
+                : 'w-2 h-2 bg-gray-200'
+          }`}
+        />
+      ))}
+    </div>
+  )
+}
+
 function CorsiBoard({
   phase,
   sequence,
   showingIndex,
   input,
   lastCorrect,
+  positions,
   onPress,
 }: {
   phase: GamePhase
@@ -80,15 +85,18 @@ function CorsiBoard({
   showingIndex: number
   input: number[]
   lastCorrect: boolean | null
+  positions: BlockPosition[]
   onPress: (idx: number) => void
 }) {
   const litBlock = showingIndex >= 0 ? sequence[showingIndex] : -1
   const feedbackCorrect = phase === 'feedback' ? lastCorrect : null
 
+  if (positions.length < BLOCK_COUNT) return null
+
   return (
     <div
       data-testid="corsi-board"
-      style={{ position: 'relative', width: CANVAS, height: CANVAS }}
+      style={{ position: 'relative', width: CANVAS_SIZE, height: CANVAS_SIZE }}
       className="mx-auto"
     >
       {Array.from({ length: BLOCK_COUNT }, (_, i) => {
@@ -96,6 +104,7 @@ function CorsiBoard({
         return (
           <Block
             key={i}
+            pos={positions[i]}
             idx={i}
             phase={phase}
             isLit={litBlock === i}
@@ -116,7 +125,7 @@ function IdleScreen({ onStart }: { onStart: () => void }) {
       <h1 className="text-3xl font-bold text-[#6c63ff]">コルシブロック</h1>
       <p className="text-gray-500 text-center text-sm max-w-xs leading-relaxed">
         ブロックが光る順番を覚えて、同じ順番にタップしよう。<br />
-        正解するたびに長くなるよ！
+        全{TOTAL_ROUNDS}ラウンド、徐々に長くなるよ！
       </p>
       <div className="bg-white rounded-2xl shadow-sm p-5 w-full max-w-xs text-sm text-gray-500 flex flex-col gap-2">
         <div className="flex items-center gap-2">
@@ -142,18 +151,22 @@ function IdleScreen({ onStart }: { onStart: () => void }) {
 function GameScreen({
   phase,
   span,
+  roundIndex,
   sequence,
   showingIndex,
   input,
   lastCorrect,
+  positions,
   onPress,
 }: {
   phase: GamePhase
   span: number
+  roundIndex: number
   sequence: number[]
   showingIndex: number
   input: number[]
   lastCorrect: boolean | null
+  positions: BlockPosition[]
   onPress: (idx: number) => void
 }) {
   const statusText = () => {
@@ -173,11 +186,13 @@ function GameScreen({
       data-phase={phase}
       className="min-h-screen bg-[#f8f7ff] flex flex-col items-center justify-center px-4 py-8 gap-5"
     >
+      <ProgressDots current={roundIndex} total={TOTAL_ROUNDS} />
+
       <div className="flex items-center gap-3">
         <span className="bg-[#6c63ff] text-white px-3 py-1 rounded-full font-bold text-sm">
-          スパン {span - 1}
+          {roundIndex + 1} / {TOTAL_ROUNDS}
         </span>
-        <span className="text-gray-400 text-sm">{sequence.length}個</span>
+        <span className="text-gray-400 text-sm">{span}個</span>
       </div>
 
       <p className={`text-sm font-medium h-5 ${statusColor()}`}>{statusText()}</p>
@@ -188,6 +203,7 @@ function GameScreen({
         showingIndex={showingIndex}
         input={input}
         lastCorrect={lastCorrect}
+        positions={positions}
         onPress={onPress}
       />
     </div>
@@ -203,6 +219,14 @@ function ResultScreen({
   onReplay: () => void
   onHome: () => void
 }) {
+  const evalMessage = () => {
+    const ratio = result.correctCount / result.totalRounds
+    if (result.perfect) return '完璧！素晴らしい記憶力！'
+    if (ratio >= 0.67) return '平均以上の成績だよ！'
+    if (ratio >= 0.33) return 'もう少しで平均に届くよ！'
+    return '練習を重ねていこう！'
+  }
+
   return (
     <div className="min-h-screen bg-[#f8f7ff] flex flex-col items-center justify-center px-4 py-8 gap-6">
       {result.perfect && (
@@ -218,24 +242,12 @@ function ResultScreen({
 
         <div className="w-full border-t border-gray-100 pt-4 flex flex-col gap-2 text-sm">
           <div className="flex justify-between">
-            <span className="text-gray-500">最大スパン</span>
-            <span className="font-bold text-[#6c63ff]">{result.maxSpan}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-500">正解ラウンド数</span>
-            <span className="font-bold text-green-600">{result.totalCorrect}</span>
+            <span className="text-gray-500">正解ラウンド</span>
+            <span className="font-bold text-[#6c63ff]">{result.correctCount} / {result.totalRounds}</span>
           </div>
         </div>
 
-        <p className="text-xs text-gray-400 text-center">
-          {result.maxSpan >= 7
-            ? '素晴らしい記憶力！'
-            : result.maxSpan >= 5
-              ? '平均以上の成績だよ！'
-              : result.maxSpan >= 3
-                ? 'もう少しで平均に届くよ！'
-                : 'まずは3を目指そう！'}
-        </p>
+        <p className="text-xs text-gray-400 text-center">{evalMessage()}</p>
       </div>
 
       <div className="flex flex-col gap-3 w-full max-w-xs">
@@ -261,11 +273,13 @@ export default function Corsi() {
   const {
     phase,
     span,
+    roundIndex,
     sequence,
     showingIndex,
     input,
     lastCorrect,
     result,
+    positions,
     startGame,
     pressBlock,
     restart,
@@ -289,10 +303,12 @@ export default function Corsi() {
     <GameScreen
       phase={phase}
       span={span}
+      roundIndex={roundIndex}
       sequence={sequence}
       showingIndex={showingIndex}
       input={input}
       lastCorrect={lastCorrect}
+      positions={positions}
       onPress={pressBlock}
     />
   )

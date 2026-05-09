@@ -4,27 +4,57 @@ import { db } from '../../db'
 export type GamePhase = 'idle' | 'showing' | 'input' | 'feedback' | 'result'
 
 export interface CorsiResult {
-  maxSpan: number
-  totalCorrect: number
+  correctCount: number
+  totalRounds: number
   score: number
   perfect: boolean
 }
 
+export interface BlockPosition {
+  x: number
+  y: number
+}
+
 interface CorsiState {
   phase: GamePhase
-  span: number
+  roundIndex: number
   sequence: number[]
   input: number[]
   showingIndex: number
   lastCorrect: boolean | null
   result: CorsiResult | null
+  positions: BlockPosition[]
+  correctCount: number
 }
 
 export const BLOCK_COUNT = 9
-const INITIAL_SPAN = 2
-const SHOW_MS = 800
-const BLANK_MS = 300
-const FEEDBACK_MS = 1000
+export const BLOCK_SIZE = 52
+export const CANVAS_SIZE = 340
+
+// スパン配列: [2,2,3,3,4,4] → 6ラウンド徐々に増加
+const ROUND_SPANS = [2, 2, 3, 3, 4, 4]
+export const TOTAL_ROUNDS = ROUND_SPANS.length
+
+const MIN_BLOCK_DIST = 70
+const SHOW_MS = 500
+const BLANK_MS = 200
+const FEEDBACK_MS = 800
+
+function generatePositions(): BlockPosition[] {
+  const maxCoord = CANVAS_SIZE - BLOCK_SIZE
+  const positions: BlockPosition[] = []
+  let attempts = 0
+
+  while (positions.length < BLOCK_COUNT && attempts < 2000) {
+    attempts++
+    const x = Math.floor(Math.random() * (maxCoord + 1))
+    const y = Math.floor(Math.random() * (maxCoord + 1))
+    const tooClose = positions.some(p => Math.hypot(p.x - x, p.y - y) < MIN_BLOCK_DIST)
+    if (!tooClose) positions.push({ x, y })
+  }
+
+  return positions
+}
 
 function generateSequence(span: number): number[] {
   const pool = Array.from({ length: BLOCK_COUNT }, (_, i) => i)
@@ -37,18 +67,18 @@ function generateSequence(span: number): number[] {
 
 const INITIAL_STATE: CorsiState = {
   phase: 'idle',
-  span: INITIAL_SPAN,
+  roundIndex: 0,
   sequence: [],
   input: [],
   showingIndex: -1,
   lastCorrect: null,
   result: null,
+  positions: [],
+  correctCount: 0,
 }
 
 export function useCorsiGame() {
   const [state, setState] = useState<CorsiState>(INITIAL_STATE)
-  const totalCorrectRef = useRef(0)
-  const maxSpanRef = useRef(0)
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([])
 
   const clearTimers = useCallback(() => {
@@ -58,9 +88,8 @@ export function useCorsiGame() {
 
   const scheduleAnimation = useCallback((sequence: number[]) => {
     timersRef.current.forEach(clearTimeout)
-
     const timers: ReturnType<typeof setTimeout>[] = []
-    let delay = 500
+    let delay = 300
 
     for (let i = 0; i < sequence.length; i++) {
       const idx = i
@@ -89,31 +118,50 @@ export function useCorsiGame() {
 
   const startGame = useCallback(() => {
     clearTimers()
-    totalCorrectRef.current = 0
-    maxSpanRef.current = 0
-    const seq = generateSequence(INITIAL_SPAN)
-    setState({ ...INITIAL_STATE, phase: 'showing', sequence: seq })
+    const positions = generatePositions()
+    const seq = generateSequence(ROUND_SPANS[0])
+    setState({ ...INITIAL_STATE, phase: 'showing', sequence: seq, positions })
     scheduleAnimation(seq)
   }, [clearTimers, scheduleAnimation])
 
-  // Correct feedback → start next (harder) round
+  // feedbackフェーズ終了 → 次ラウンドへ or ゲーム終了
   useEffect(() => {
-    if (state.phase !== 'feedback' || !state.lastCorrect) return
+    if (state.phase !== 'feedback') return
 
-    const seq = generateSequence(state.span)
+    const nextRoundIndex = state.roundIndex + 1
+    const isLastRound = nextRoundIndex >= TOTAL_ROUNDS
+    const newPositions = isLastRound ? [] : generatePositions()
+    const seq = isLastRound ? [] : generateSequence(ROUND_SPANS[nextRoundIndex])
+    const correctCount = state.correctCount
+
     const timer = setTimeout(() => {
-      setState(s => ({
-        ...s,
-        phase: 'showing',
-        sequence: seq,
-        input: [],
-        showingIndex: -1,
-      }))
-      scheduleAnimation(seq)
+      if (isLastRound) {
+        const score = Math.round((correctCount / TOTAL_ROUNDS) * 100)
+        const perfect = correctCount === TOTAL_ROUNDS
+        const result: CorsiResult = { correctCount, totalRounds: TOTAL_ROUNDS, score, perfect }
+        db.playRecords.add({
+          gameId: 'corsi',
+          timestamp: new Date(),
+          score,
+          metadata: { correctCount, totalRounds: TOTAL_ROUNDS, perfect },
+        })
+        setState(s => ({ ...s, phase: 'result', result }))
+      } else {
+        setState(s => ({
+          ...s,
+          phase: 'showing',
+          roundIndex: nextRoundIndex,
+          sequence: seq,
+          input: [],
+          showingIndex: -1,
+          positions: newPositions,
+        }))
+        scheduleAnimation(seq)
+      }
     }, FEEDBACK_MS)
 
     return () => clearTimeout(timer)
-  }, [state.phase, state.lastCorrect, state.span, scheduleAnimation])
+  }, [state.phase, state.roundIndex, state.correctCount, scheduleAnimation])
 
   const pressBlock = useCallback((blockIdx: number) => {
     setState(prev => {
@@ -123,53 +171,16 @@ export function useCorsiGame() {
       const pos = newInput.length - 1
 
       if (newInput[pos] !== prev.sequence[pos]) {
-        const score = maxSpanRef.current * 10 + totalCorrectRef.current * 2
-        const result: CorsiResult = {
-          maxSpan: maxSpanRef.current,
-          totalCorrect: totalCorrectRef.current,
-          score,
-          perfect: false,
-        }
-        db.playRecords.add({
-          gameId: 'corsi',
-          timestamp: new Date(),
-          score,
-          metadata: { maxSpan: maxSpanRef.current, totalCorrect: totalCorrectRef.current },
-        })
-        return { ...prev, input: newInput, phase: 'result', result, lastCorrect: false }
+        return { ...prev, input: newInput, phase: 'feedback', lastCorrect: false }
       }
 
       if (newInput.length === prev.sequence.length) {
-        totalCorrectRef.current++
-        if (prev.span > maxSpanRef.current) {
-          maxSpanRef.current = prev.span
-        }
-
-        const nextSpan = prev.span + 1
-
-        if (nextSpan > BLOCK_COUNT) {
-          const score = maxSpanRef.current * 10 + totalCorrectRef.current * 2
-          const result: CorsiResult = {
-            maxSpan: maxSpanRef.current,
-            totalCorrect: totalCorrectRef.current,
-            score,
-            perfect: true,
-          }
-          db.playRecords.add({
-            gameId: 'corsi',
-            timestamp: new Date(),
-            score,
-            metadata: { maxSpan: maxSpanRef.current, totalCorrect: totalCorrectRef.current, perfect: true },
-          })
-          return { ...prev, input: newInput, phase: 'result', result, lastCorrect: true }
-        }
-
         return {
           ...prev,
           input: newInput,
           phase: 'feedback',
           lastCorrect: true,
-          span: nextSpan,
+          correctCount: prev.correctCount + 1,
         }
       }
 
@@ -184,12 +195,15 @@ export function useCorsiGame() {
 
   return {
     phase: state.phase,
-    span: state.span,
+    roundIndex: state.roundIndex,
+    span: ROUND_SPANS[Math.min(state.roundIndex, ROUND_SPANS.length - 1)],
     sequence: state.sequence,
     input: state.input,
     showingIndex: state.showingIndex,
     lastCorrect: state.lastCorrect,
     result: state.result,
+    positions: state.positions,
+    correctCount: state.correctCount,
     startGame,
     pressBlock,
     restart,
