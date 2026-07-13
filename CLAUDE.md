@@ -1,5 +1,10 @@
 # BrainTrain
 
+> **⚠️ Status (2026-07-13): このリポジトリは「プロトタイプ v1」として凍結。**
+> 新規ゲーム追加・機能開発はここでは行わない（GitHub Pages のデモは存置）。
+> 後継の iOS 版 (Expo + TypeScript) の方針は [docs/direction-2026-07.md](docs/direction-2026-07.md)、
+> 凍結時点の現状調査は [docs/status-2026-07.md](docs/status-2026-07.md) を参照。
+
 脳トレゲームを収録するWebサイト。バックエンドなしの純粋フロントエンド SPA。
 
 ## Development Commands
